@@ -1,0 +1,11 @@
+{
+    "id": "abs-v3",
+    "name": "30-Day Ab Challenge",
+    "type": "challenge",
+    "color": "blue",
+    "tasks": [
+        { "day": 1, "sit": "10", "flutter": "20", "plank": "30s" },
+        { "day": 2, "sit": "14", "flutter": "40", "plank": "40s" },
+        { "day": 6, "sit": "26", "flutter": "100 (5x20)", "plank": "1m" }
+    ]
+}
