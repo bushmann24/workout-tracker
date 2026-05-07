@@ -1,14 +1,14 @@
 {
-    "id": "boxing-daily",
-    "name": "Boxing Training",
+    "id": "boxing",
+    "name": "Boxing Drills",
     "type": "routine",
     "color": "red",
     "tasks": [
-        { "label": "Warm Up (Set 1)", "val": "2 Mins: Straight Punches, Hooks, Uppercuts. Last 10s: Burnout fast punches!" },
-        { "label": "Warm Up (Set 2)", "val": "2 Mins: Straight Punches, Hooks, Uppercuts. Last 10s: Burnout fast punches!" },
-        { "label": "1st Combo (2 Mins)", "val": "Jab, Cross, Hook, Cross" },
-        { "label": "2nd Combo (2 Mins)", "val": "Jab, Cross, R-Uppercut, L-Hook" },
-        { "label": "3rd Combo", "val": "Double Jab, Cross" },
-        { "label": "4th Combo", "val": "Jab, Cross, Hook, Hook" }
+        { "label": "Warm Up 1", "val": "2m: Straights, Hooks, Uppers. Last 10s: FAST!" },
+        { "label": "Warm Up 2", "val": "2m: Straights, Hooks, Uppers. Last 10s: FAST!" },
+        { "label": "Combo 1", "val": "Jab, Cross, Hook, Cross (2 Mins)" },
+        { "label": "Combo 2", "val": "Jab, Cross, R-Uppercut, L-Hook (2 Mins)" },
+        { "label": "Combo 3", "val": "Double Jab, Cross" },
+        { "label": "Combo 4", "val": "Jab, Cross, Hook, Hook" }
     ]
 }
