@@ -1,0 +1,7 @@
+body { background-color: #020617; color: #f8fafc; font-family: system-ui, sans-serif; }
+.glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+.btn-blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.btn-red { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+input[type="checkbox"]:checked + label { text-decoration: line-through; opacity: 0.5; }
+.animate-in { animation: slideUp 0.3s ease-out forwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
