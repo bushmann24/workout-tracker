@@ -85,11 +85,12 @@ function renderWorkout(root, workout) {
                 </div>
                 <div class="p-10 text-center border border-blue-500/20 text-blue-400 font-black italic uppercase tracking-widest rounded-2xl mb-8">Active Recovery</div>`;
         } else {
+            isTaskDay = true;
             totalRounds = dayData.rounds || 1;
             
-            // Build the visual Round Tracker
+            // Build the visual Round Tracker (Only show if multiple rounds exist)
             let roundsTrackerHtml = '';
-            if (totalRounds > 1 || state.sessionRound > 1) {
+            if (totalRounds > 1) {
                 const roundBoxes = Array.from({length: totalRounds}).map((_, i) => {
                     const rNum = i + 1;
                     const isDone = rNum < state.sessionRound;
@@ -114,73 +115,57 @@ function renderWorkout(root, workout) {
                 `;
             }
 
-            // Check if all rounds are completed
-            if (state.sessionRound > totalRounds) {
-                contentHtml = `
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="text-3xl font-black italic uppercase leading-none">Day ${prog.cur}</h2>
-                        <span class="text-[10px] font-black px-3 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/20">DONE</span>
-                    </div>
-                    ${roundsTrackerHtml}
-                    <div class="mt-4 mb-8 p-8 text-center bg-green-500/10 rounded-3xl border border-green-500/20">
-                        <p class="text-green-500 font-black text-2xl uppercase italic">Ready to Log! 🏆</p>
-                    </div>
-                `;
-                isTaskDay = false; // Show the log session button
-            } else {
-                isTaskDay = true;
-                const taskRows = Object.entries(dayData)
-                    .filter(([k]) => k !== 'day' && k !== 'rest' && k !== 'rounds')
-                    .map(([k, v], idx) => {
-                        let timerHtml = '';
-                        let timerToggleBtn = '';
+            const taskRows = Object.entries(dayData)
+                .filter(([k]) => k !== 'day' && k !== 'rest' && k !== 'rounds')
+                .map(([k, v], idx) => {
+                    let timerHtml = '';
+                    let timerToggleBtn = '';
+                    
+                    if (k.toLowerCase().includes('plank')) {
+                        const secs = parseTime(v);
                         
-                        if (k.toLowerCase().includes('plank')) {
-                            const secs = parseTime(v);
-                            
-                            // Re-positioned and styled Timer Toggle Button
-                            timerToggleBtn = `
-                                <div class="ml-10 mt-3">
-                                    <button onclick="event.preventDefault(); toggleTimerView(${idx})" class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl text-[11px] uppercase font-black active:scale-95 transition shadow-sm w-fit flex items-center gap-2">
-                                        ⏱️ Timer Panel
-                                    </button>
-                                </div>
-                            `;
-                            
-                            // Timer Panel Layout
-                            timerHtml = `
-                            <div id="timer-panel-${idx}" class="hidden ml-10 mt-3 flex gap-2 items-center bg-slate-900 p-2 rounded-xl border border-slate-800 shadow-inner" onclick="event.preventDefault();">
-                                <div id="time-disp-${idx}" class="font-mono text-xl font-black text-blue-400 w-20 text-center tracking-tighter">${formatTime(secs)}</div>
-                                <div class="flex gap-2 flex-1">
-                                    <button onclick="toggleTimer(${idx}, ${secs}, this)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-blue-500 transition">Start</button>
-                                    <button onclick="resetTimer(${idx}, ${secs})" class="px-4 bg-slate-800 text-slate-400 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-slate-700 transition">Reset</button>
-                                </div>
-                            </div>`;
-                        }
+                        // Styled Timer Toggle Button underneath the label
+                        timerToggleBtn = `
+                            <div class="mt-4 pt-4 border-t border-white/5">
+                                <button onclick="event.preventDefault(); toggleTimerView(${idx})" class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl text-[11px] uppercase font-black active:scale-95 transition shadow-sm w-fit flex items-center gap-2">
+                                    Timer Panel
+                                </button>
+                            </div>
+                        `;
+                        
+                        // Timer Panel Layout
+                        timerHtml = `
+                        <div id="timer-panel-${idx}" class="hidden mt-3 flex gap-2 items-center bg-slate-900 p-2 rounded-xl border border-slate-800 shadow-inner" onclick="event.preventDefault();">
+                            <div id="time-disp-${idx}" class="font-mono text-xl font-black text-blue-400 w-20 text-center tracking-tighter">${formatTime(secs)}</div>
+                            <div class="flex gap-2 flex-1">
+                                <button onclick="toggleTimer(${idx}, ${secs}, this)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-blue-500 transition">Start</button>
+                                <button onclick="resetTimer(${idx}, ${secs})" class="px-4 bg-slate-800 text-slate-400 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-slate-700 transition">Reset</button>
+                            </div>
+                        </div>`;
+                    }
 
-                        return `
-                        <div>
-                            <p class="text-[10px] text-slate-500 font-bold uppercase mb-2 ml-1">${k}</p>
-                            <label for="task-${idx}" class="block bg-white/5 p-4 rounded-2xl cursor-pointer hover:bg-white/10 active:scale-[0.98] transition border border-transparent select-none">
-                                <div class="flex items-center gap-4">
-                                    <input type="checkbox" id="task-${idx}" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700 pointer-events-none">
-                                    <span class="text-xl font-bold transition-all">${v}</span>
-                                </div>
-                                ${timerToggleBtn}
-                                ${timerHtml}
+                    return `
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2 ml-1">${k}</p>
+                        <div class="bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition border border-transparent select-none">
+                            <label for="task-${idx}" class="flex items-center gap-4 cursor-pointer active:scale-[0.98]">
+                                <input type="checkbox" id="task-${idx}" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700 pointer-events-none">
+                                <span class="text-xl font-bold transition-all">${v}</span>
                             </label>
+                            ${timerToggleBtn}
+                            ${timerHtml}
                         </div>
-                    `}).join('');
-
-                contentHtml = `
-                    <div class="flex justify-between items-center mb-8">
-                        <h2 class="text-3xl font-black italic uppercase leading-none">Day ${prog.cur}</h2>
-                        <span class="text-[10px] font-black px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">WORK</span>
                     </div>
-                    <div class="space-y-4">${taskRows}</div>
-                    ${roundsTrackerHtml}
-                `;
-            }
+                `}).join('');
+
+            contentHtml = `
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-black italic uppercase leading-none">Day ${prog.cur}</h2>
+                    <span class="text-[10px] font-black px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">WORK</span>
+                </div>
+                <div class="space-y-4">${taskRows}</div>
+                ${roundsTrackerHtml}
+            `;
         }
     } else {
         const taskRows = workout.tasks.map((t, i) => `
@@ -208,13 +193,13 @@ function renderWorkout(root, workout) {
         <div class="glass p-6 rounded-[2.5rem] shadow-2xl">
             ${contentHtml}
             
-            <!-- Dynamic Action Buttons -->
+            <!-- Dynamic Action Button -->
             ${(workout.type === 'challenge' && isTaskDay) ? 
-                `<button id="next-round-btn" onclick="nextRound()" class="hidden w-full bg-slate-800 text-slate-400 border border-slate-700 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4 shadow-xl">Complete Round</button>` 
+                `<button id="action-btn" class="hidden w-full py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4 shadow-xl"></button>` 
             : ''}
             
             ${(!workout.tasks[prog.cur - 1] && workout.type === 'challenge') ? '' : 
-                `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${isTaskDay ? 'hidden' : ''} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
+                `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${isTaskDay ? 'hidden' : ''} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Complete Session</button>`
             }
         </div>
         <div class="mt-10 grid grid-cols-10 gap-1.5">${gridHtml}</div>
@@ -243,22 +228,30 @@ function handleCheck(workoutId, totalRounds) {
     const checkboxes = document.querySelectorAll('.task-checkbox');
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
     
-    const nxtBtn = document.getElementById('next-round-btn');
+    const actionBtn = document.getElementById('action-btn');
 
-    if (nxtBtn) {
+    if (actionBtn) {
         if (allChecked) {
-            nxtBtn.classList.remove('hidden');
-            if (state.sessionRound === totalRounds) {
-                nxtBtn.innerText = "Complete Final Round →";
-                nxtBtn.classList.replace('bg-slate-800', 'bg-green-600');
-                nxtBtn.classList.replace('text-slate-400', 'text-white');
-                nxtBtn.classList.replace('border-slate-700', 'border-green-500');
+            actionBtn.classList.remove('hidden');
+            
+            if (totalRounds === 1) {
+                // Only 1 round in total
+                actionBtn.innerText = "Complete Session";
+                actionBtn.onclick = () => finishSession(workoutId);
+                actionBtn.className = "w-full bg-green-600 text-white border border-green-500 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4 shadow-xl";
+            } else if (state.sessionRound === totalRounds) {
+                // Multi-round day, and this is the final round
+                actionBtn.innerText = "Complete Final Round";
+                actionBtn.onclick = () => finishSession(workoutId);
+                actionBtn.className = "w-full bg-green-600 text-white border border-green-500 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4 shadow-xl";
             } else {
-                nxtBtn.innerText = `Complete Round ${state.sessionRound} →`;
-                nxtBtn.classList.replace('text-slate-400', 'text-white');
+                // Multi-round day, and there are more rounds to go
+                actionBtn.innerText = `Complete Round ${state.sessionRound}`;
+                actionBtn.onclick = () => nextRound();
+                actionBtn.className = "w-full bg-slate-800 text-white border border-slate-700 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4 shadow-xl";
             }
         } else {
-            nxtBtn.classList.add('hidden');
+            actionBtn.classList.add('hidden');
         }
     }
 }
