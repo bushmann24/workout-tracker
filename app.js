@@ -1,40 +1,36 @@
-// 1. ADD NEW JSON FILES HERE
 const WORKOUT_FILES = [
     'data/abs.json',
     'data/boxing.json'
 ];
 
 let state = {
-    view: 'home', // 'home' or a workout ID
+    view: 'home',
     progress: JSON.parse(localStorage.getItem('hub_progress')) || {},
-    workouts: []
+    workouts: [],
+    sessionRound: 1 // Tracks the current round for multi-round days
 };
 
-// 2. BOOTSTRAP THE APP
+let timerInterval;
+
 async function init() {
     try {
-        // Fetch all JSON files listed above
         const fetches = WORKOUT_FILES.map(file => fetch(file).then(res => res.json()));
         state.workouts = await Promise.all(fetches);
         
-        // Ensure progress object exists for every loaded workout
         state.workouts.forEach(w => {
             if (!state.progress[w.id]) {
                 state.progress[w.id] = { cur: 1, logs: [] };
             }
         });
-
         render();
     } catch (err) {
-        document.getElementById('app-root').innerHTML = `<p class="text-red-500 text-center mt-20">Error loading data. Are you running this on a server/GitHub Pages?</p>`;
+        document.getElementById('app-root').innerHTML = `<p class="text-red-500 text-center mt-20">Error loading data.</p>`;
         console.error(err);
     }
 }
 
-// 3. RENDER LOGIC
 function render() {
     const root = document.getElementById('app-root');
-    
     if (state.view === 'home') {
         renderHome(root);
     } else {
@@ -71,6 +67,7 @@ function renderHome(root) {
 function renderWorkout(root, workout) {
     const prog = state.progress[workout.id];
     let contentHtml = '';
+    let isTaskDay = false;
 
     if (workout.type === 'challenge') {
         const dayData = workout.tasks[prog.cur - 1];
@@ -84,27 +81,41 @@ function renderWorkout(root, workout) {
                 </div>
                 <div class="p-10 text-center border border-blue-500/20 text-blue-400 font-black italic uppercase tracking-widest rounded-2xl mb-8">Active Recovery</div>`;
         } else {
+            isTaskDay = true;
+            const totalRounds = dayData.rounds || 1;
+            
             const taskRows = Object.entries(dayData)
-                .filter(([k]) => k !== 'day' && k !== 'rest')
-                .map(([k, v]) => `
+                .filter(([k]) => k !== 'day' && k !== 'rest' && k !== 'rounds')
+                .map(([k, v]) => {
+                    let extraHtml = '';
+                    // Inject Timer for Planks
+                    if (k.toLowerCase().includes('plank')) {
+                        extraHtml = `<button onclick="startTimer(this, '${v}')" class="mt-2 block w-full text-[10px] bg-slate-800 border border-slate-700 px-3 py-2 rounded-lg font-black tracking-widest text-blue-400 active:scale-95 transition">START TIMER</button>`;
+                    }
+
+                    return `
                     <div>
                         <p class="text-[10px] text-slate-500 font-bold uppercase mb-2">${k}</p>
-                        <div class="bg-white/5 p-4 rounded-2xl flex items-center gap-4">
-                            <input type="checkbox" class="w-6 h-6 rounded bg-slate-800 border-slate-700">
-                            <span class="text-xl font-bold">${v}</span>
+                        <div class="bg-white/5 p-4 rounded-2xl">
+                            <div class="flex items-center gap-4">
+                                <input type="checkbox" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700">
+                                <span class="text-xl font-bold">${v}</span>
+                            </div>
+                            ${extraHtml}
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
 
             contentHtml = `
-                <div class="flex justify-between items-center mb-8">
+                <div class="flex justify-between items-center mb-2">
                     <h2 class="text-3xl font-black italic uppercase leading-none">Day ${prog.cur}</h2>
                     <span class="text-[10px] font-black px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">WORK</span>
                 </div>
+                ${totalRounds > 1 ? `<p class="text-blue-500 font-black italic mb-6">ROUND ${state.sessionRound} OF ${totalRounds}</p>` : '<div class="mb-8"></div>'}
                 <div class="space-y-4 mb-8">${taskRows}</div>`;
         }
     } else {
-        // Routine type (like Boxing)
+        // Routine type code remains identical
         const taskRows = workout.tasks.map((t, i) => `
             <div class="bg-white/5 p-4 rounded-2xl flex items-start gap-4 mb-4">
                 <input type="checkbox" id="${workout.id}-${i}" class="mt-1 w-5 h-5 rounded bg-slate-800 border-slate-700 text-${workout.color}-500">
@@ -123,12 +134,15 @@ function renderWorkout(root, workout) {
     const gridHtml = renderGrid(prog.logs, workout.type === 'challenge' ? prog.cur : null);
     const color = workout.color || 'blue';
 
+    // Hide the finish button initially if it's a task day (revealed via handleCheck)
+    const buttonClass = isTaskDay ? "hidden" : "";
+
     root.innerHTML = `
         <button onclick="nav('home')" class="text-slate-500 text-[10px] font-black uppercase mb-6 tracking-[0.2em]">← Back to Hub</button>
         <div class="glass p-6 rounded-[2.5rem] shadow-2xl">
             ${contentHtml}
             ${(!workout.tasks[prog.cur - 1] && workout.type === 'challenge') ? '' : 
-                `<button onclick="finishSession('${workout.id}')" class="w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
+                `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${buttonClass} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
             }
         </div>
         <div class="mt-10 grid grid-cols-10 gap-1.5">${gridHtml}</div>
@@ -152,9 +166,70 @@ function renderGrid(logs, currentActive) {
     return html;
 }
 
-// 4. ACTIONS
+// Checkboxes and Rounds Logic
+function handleCheck(workoutId, totalRounds) {
+    const checkboxes = document.querySelectorAll('.task-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+    if (allChecked) {
+        if (state.sessionRound < totalRounds) {
+            setTimeout(() => {
+                state.sessionRound++;
+                if (timerInterval) clearInterval(timerInterval);
+                render(); 
+            }, 400); // Small delay so the user sees the final tick before it switches
+        } else {
+            // Unhide the Log Session button
+            document.getElementById('finish-btn').classList.remove('hidden');
+        }
+    }
+}
+
+// Timer Logic
+function parseTime(timeStr) {
+    let seconds = 0;
+    const mMatch = timeStr.match(/(\d+)\s*m/i);
+    const sMatch = timeStr.match(/(\d+)\s*s/i);
+    if (mMatch) seconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) seconds += parseInt(sMatch[1]);
+    return seconds;
+}
+
+function startTimer(btn, timeStr) {
+    if (timerInterval) clearInterval(timerInterval);
+    let time = parseTime(timeStr);
+    if(time === 0) return;
+    
+    btn.disabled = true;
+    btn.classList.add('bg-blue-600', 'text-white');
+    btn.classList.remove('bg-slate-800', 'text-blue-400');
+    btn.innerText = time + ' SECONDS';
+    
+    timerInterval = setInterval(() => {
+        time--;
+        if(time <= 0) {
+            clearInterval(timerInterval);
+            btn.innerText = "DONE!";
+            btn.classList.replace('bg-blue-600', 'bg-green-500');
+            
+            // Auto-check the plank box if possible
+            const parent = btn.parentElement;
+            const checkbox = parent.querySelector('.task-checkbox');
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        } else {
+            btn.innerText = time + ' SECONDS';
+        }
+    }, 1000);
+}
+
+// Navigation & Actions
 function nav(viewId) {
     state.view = viewId;
+    state.sessionRound = 1; // Reset round on navigation
+    if (timerInterval) clearInterval(timerInterval);
     window.scrollTo(0, 0);
     render();
 }
@@ -171,13 +246,15 @@ function finishSession(workoutId) {
         if (nextCount <= 30) prog.logs.push(nextCount);
     }
 
+    state.sessionRound = 1; // Reset round for next time
     localStorage.setItem('hub_progress', JSON.stringify(state.progress));
-    render();
+    nav('home');
 }
 
 function resetProgress(workoutId) {
     if (confirm("Reset this specific program?")) {
         state.progress[workoutId] = { cur: 1, logs: [] };
+        state.sessionRound = 1;
         localStorage.setItem('hub_progress', JSON.stringify(state.progress));
         render();
     }
