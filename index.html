@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Training Hub</title>
-    <!-- Link the Manifest for App Install -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#020617">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,17 +12,29 @@
         body { background-color: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .glass { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
         .grid-box { aspect-ratio: 1/1; border-radius: 4px; border: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; }
-        input[type="checkbox"]:checked + label { text-decoration: line-through; opacity: 0.4; }
+        /* Style for checked state applied to the parent label */
+        input[type="checkbox"]:checked ~ span { text-decoration: line-through; opacity: 0.4; }
     </style>
 </head>
-<body class="p-4 md:p-10 min-h-screen flex justify-center">
+<body class="p-4 md:p-10 min-h-screen flex justify-center pb-20">
     <div id="app-root" class="w-full max-w-md">
         <p class="text-center text-slate-500 mt-20 animate-pulse">Loading Engine...</p>
+    </div>
+
+    <!-- Custom Reset Modal -->
+    <div id="reset-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 p-6 rounded-3xl max-w-sm w-full border border-slate-700 shadow-2xl">
+            <h3 class="text-xl font-black italic uppercase mb-2 text-white">Reset Progress?</h3>
+            <p class="text-slate-400 text-sm mb-6 font-bold">This will wipe all your logs for this specific program. This cannot be undone.</p>
+            <div class="flex gap-3">
+                <button onclick="hideResetModal()" class="flex-1 py-3 rounded-xl bg-slate-700 text-white font-black uppercase tracking-wider text-sm active:scale-95 transition">Cancel</button>
+                <button id="confirm-reset-btn" class="flex-1 py-3 rounded-xl bg-red-600 text-white font-black uppercase tracking-wider text-sm active:scale-95 transition shadow-lg shadow-red-600/20">Reset</button>
+            </div>
+        </div>
     </div>
     
     <script src="app.js"></script>
     <script>
-        // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
