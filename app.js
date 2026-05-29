@@ -55,7 +55,6 @@ function renderHome(root) {
                     <h3 class="text-2xl font-black uppercase italic leading-none">${w.name}</h3>
                     <p class="text-[10px] text-slate-500 font-bold uppercase mt-2 tracking-widest">${statusText}</p>
                 </div>
-                <div class="text-${color}-500 text-3xl">→</div>
             </button>
         `;
     }).join('');
@@ -93,10 +92,17 @@ function renderWorkout(root, workout) {
                 .filter(([k]) => k !== 'day' && k !== 'rest' && k !== 'rounds')
                 .map(([k, v], idx) => {
                     let timerHtml = '';
+                    let timerToggleBtn = '';
+                    
                     if (k.toLowerCase().includes('plank')) {
                         const secs = parseTime(v);
+                        
+                        // The button that toggles the timer panel
+                        timerToggleBtn = `<button onclick="event.preventDefault(); toggleTimerView(${idx})" class="ml-auto bg-slate-800 text-slate-400 px-3 py-1 rounded-lg text-[10px] uppercase font-bold active:bg-slate-700 transition">Timer</button>`;
+                        
+                        // The actual timer panel (Hidden by default)
                         timerHtml = `
-                        <div class="mt-4 flex gap-2 items-center bg-slate-900 p-2 rounded-xl" onclick="event.preventDefault();">
+                        <div id="timer-panel-${idx}" class="hidden mt-4 flex gap-2 items-center bg-slate-900 p-2 rounded-xl" onclick="event.preventDefault();">
                             <div id="time-disp-${idx}" class="font-mono text-xl font-black text-blue-400 w-20 text-center tracking-tighter">${formatTime(secs)}</div>
                             <div class="flex gap-2 flex-1">
                                 <button onclick="toggleTimer(${idx}, ${secs}, this)" class="flex-1 bg-blue-600/20 text-blue-500 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-blue-600 active:text-white transition">Start</button>
@@ -112,6 +118,7 @@ function renderWorkout(root, workout) {
                             <div class="flex items-center gap-4">
                                 <input type="checkbox" id="task-${idx}" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700 pointer-events-none">
                                 <span class="text-xl font-bold transition-all">${v}</span>
+                                ${timerToggleBtn}
                             </div>
                             ${timerHtml}
                         </label>
@@ -152,12 +159,11 @@ function renderWorkout(root, workout) {
     const color = workout.color || 'blue';
 
     root.innerHTML = `
-        <button onclick="nav('home')" class="bg-white/10 hover:bg-white/20 text-white rounded-xl px-4 py-2 text-[10px] uppercase tracking-widest font-black flex items-center gap-2 w-fit mb-6 transition">← Back</button>
+        <button onclick="nav('home')" class="bg-white/10 hover:bg-white/20 text-white rounded-xl px-4 py-2 text-[10px] uppercase tracking-widest font-black w-fit mb-6 transition">Back</button>
         <div class="glass p-6 rounded-[2.5rem] shadow-2xl">
             ${contentHtml}
             
-            <!-- Hidden Action Buttons -->
-            <button id="next-round-btn" onclick="nextRound()" class="hidden w-full bg-slate-800 text-white border border-slate-700 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4">Start Next Round →</button>
+            <button id="next-round-btn" onclick="nextRound()" class="hidden w-full bg-slate-800 text-white border border-slate-700 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4">Start Next Round</button>
             
             ${(!workout.tasks[prog.cur - 1] && workout.type === 'challenge') ? '' : 
                 `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${isTaskDay ? 'hidden' : ''} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
@@ -209,6 +215,14 @@ function nextRound() {
     clearActiveTimer();
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Logic: Timer Toggle
+function toggleTimerView(idx) {
+    const panel = document.getElementById(`timer-panel-${idx}`);
+    if (panel) {
+        panel.classList.toggle('hidden');
+    }
 }
 
 // Logic: Timer
@@ -325,7 +339,6 @@ function finishSession(workoutId) {
     clearActiveTimer();
     localStorage.setItem('hub_progress', JSON.stringify(state.progress));
     
-    // Kept on the same view so user sees the progress update!
     window.scrollTo({ top: 0, behavior: 'smooth' });
     render();
 }
