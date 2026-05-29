@@ -7,10 +7,14 @@ let state = {
     view: 'home',
     progress: JSON.parse(localStorage.getItem('hub_progress')) || {},
     workouts: [],
-    sessionRound: 1 // Tracks the current round for multi-round days
+    sessionRound: 1
 };
 
-let timerInterval;
+// Global Timer State
+let tInterval = null;
+let tLeft = 0;
+let tActiveIdx = null;
+let tRunning = false;
 
 async function init() {
     try {
@@ -68,11 +72,12 @@ function renderWorkout(root, workout) {
     const prog = state.progress[workout.id];
     let contentHtml = '';
     let isTaskDay = false;
+    let totalRounds = 1;
 
     if (workout.type === 'challenge') {
         const dayData = workout.tasks[prog.cur - 1];
         if (!dayData) {
-            contentHtml = `<p class="text-green-500 font-black text-center p-10">PROGRAM COMPLETE 🏆</p>`;
+            contentHtml = `<p class="text-green-500 font-black text-center p-10 text-xl">PROGRAM COMPLETE 🏆</p>`;
         } else if (dayData.rest) {
             contentHtml = `
                 <div class="flex justify-between items-center mb-8">
@@ -82,48 +87,60 @@ function renderWorkout(root, workout) {
                 <div class="p-10 text-center border border-blue-500/20 text-blue-400 font-black italic uppercase tracking-widest rounded-2xl mb-8">Active Recovery</div>`;
         } else {
             isTaskDay = true;
-            const totalRounds = dayData.rounds || 1;
+            totalRounds = dayData.rounds || 1;
             
             const taskRows = Object.entries(dayData)
                 .filter(([k]) => k !== 'day' && k !== 'rest' && k !== 'rounds')
-                .map(([k, v]) => {
-                    let extraHtml = '';
-                    // Inject Timer for Planks
+                .map(([k, v], idx) => {
+                    let timerHtml = '';
                     if (k.toLowerCase().includes('plank')) {
-                        extraHtml = `<button onclick="startTimer(this, '${v}')" class="mt-2 block w-full text-[10px] bg-slate-800 border border-slate-700 px-3 py-2 rounded-lg font-black tracking-widest text-blue-400 active:scale-95 transition">START TIMER</button>`;
+                        const secs = parseTime(v);
+                        timerHtml = `
+                        <div class="mt-4 flex gap-2 items-center bg-slate-900 p-2 rounded-xl" onclick="event.preventDefault();">
+                            <div id="time-disp-${idx}" class="font-mono text-xl font-black text-blue-400 w-20 text-center tracking-tighter">${formatTime(secs)}</div>
+                            <div class="flex gap-2 flex-1">
+                                <button onclick="toggleTimer(${idx}, ${secs}, this)" class="flex-1 bg-blue-600/20 text-blue-500 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-blue-600 active:text-white transition">Start</button>
+                                <button onclick="resetTimer(${idx}, ${secs})" class="px-4 bg-slate-800 text-slate-400 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-slate-700 transition">Reset</button>
+                            </div>
+                        </div>`;
                     }
 
                     return `
                     <div>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2">${k}</p>
-                        <div class="bg-white/5 p-4 rounded-2xl">
+                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2 ml-1">${k}</p>
+                        <label for="task-${idx}" class="block bg-white/5 p-4 rounded-2xl cursor-pointer hover:bg-white/10 active:scale-[0.98] transition border border-transparent select-none">
                             <div class="flex items-center gap-4">
-                                <input type="checkbox" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700">
-                                <span class="text-xl font-bold">${v}</span>
+                                <input type="checkbox" id="task-${idx}" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700 pointer-events-none">
+                                <span class="text-xl font-bold transition-all">${v}</span>
                             </div>
-                            ${extraHtml}
-                        </div>
+                            ${timerHtml}
+                        </label>
                     </div>
                 `}).join('');
 
+            const roundBadge = totalRounds > 1 
+                ? `<div class="mb-6 inline-block bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-md tracking-widest shadow-lg shadow-blue-500/20">ROUND ${state.sessionRound} OF ${totalRounds}</div>` 
+                : `<div class="mb-8"></div>`;
+
             contentHtml = `
-                <div class="flex justify-between items-center mb-2">
+                <div class="flex justify-between items-center mb-3">
                     <h2 class="text-3xl font-black italic uppercase leading-none">Day ${prog.cur}</h2>
                     <span class="text-[10px] font-black px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">WORK</span>
                 </div>
-                ${totalRounds > 1 ? `<p class="text-blue-500 font-black italic mb-6">ROUND ${state.sessionRound} OF ${totalRounds}</p>` : '<div class="mb-8"></div>'}
+                ${roundBadge}
                 <div class="space-y-4 mb-8">${taskRows}</div>`;
         }
     } else {
-        // Routine type code remains identical
         const taskRows = workout.tasks.map((t, i) => `
-            <div class="bg-white/5 p-4 rounded-2xl flex items-start gap-4 mb-4">
-                <input type="checkbox" id="${workout.id}-${i}" class="mt-1 w-5 h-5 rounded bg-slate-800 border-slate-700 text-${workout.color}-500">
-                <label for="${workout.id}-${i}">
-                    <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${t.label}</p>
-                    <p class="text-md font-bold leading-tight">${t.val}</p>
-                </label>
-            </div>
+            <label for="${workout.id}-${i}" class="block bg-white/5 p-4 rounded-2xl mb-4 cursor-pointer hover:bg-white/10 active:scale-[0.98] transition select-none">
+                <div class="flex items-start gap-4">
+                    <input type="checkbox" id="${workout.id}-${i}" class="mt-1 w-5 h-5 rounded bg-slate-800 border-slate-700 text-${workout.color}-500 pointer-events-none">
+                    <span class="flex-1">
+                        <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${t.label}</p>
+                        <p class="text-md font-bold leading-tight mt-1">${t.val}</p>
+                    </span>
+                </div>
+            </label>
         `).join('');
 
         contentHtml = `
@@ -134,19 +151,20 @@ function renderWorkout(root, workout) {
     const gridHtml = renderGrid(prog.logs, workout.type === 'challenge' ? prog.cur : null);
     const color = workout.color || 'blue';
 
-    // Hide the finish button initially if it's a task day (revealed via handleCheck)
-    const buttonClass = isTaskDay ? "hidden" : "";
-
     root.innerHTML = `
-        <button onclick="nav('home')" class="text-slate-500 text-[10px] font-black uppercase mb-6 tracking-[0.2em]">← Back to Hub</button>
+        <button onclick="nav('home')" class="bg-white/10 hover:bg-white/20 text-white rounded-xl px-4 py-2 text-[10px] uppercase tracking-widest font-black flex items-center gap-2 w-fit mb-6 transition">← Back</button>
         <div class="glass p-6 rounded-[2.5rem] shadow-2xl">
             ${contentHtml}
+            
+            <!-- Hidden Action Buttons -->
+            <button id="next-round-btn" onclick="nextRound()" class="hidden w-full bg-slate-800 text-white border border-slate-700 py-5 rounded-2xl font-black text-lg uppercase active:scale-95 transition mb-4">Start Next Round →</button>
+            
             ${(!workout.tasks[prog.cur - 1] && workout.type === 'challenge') ? '' : 
-                `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${buttonClass} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
+                `<button id="finish-btn" onclick="finishSession('${workout.id}')" class="${isTaskDay ? 'hidden' : ''} w-full bg-${color}-600 py-5 rounded-2xl font-black text-xl uppercase shadow-xl shadow-${color}-600/20 active:scale-95 transition">Log Session</button>`
             }
         </div>
         <div class="mt-10 grid grid-cols-10 gap-1.5">${gridHtml}</div>
-        <button onclick="resetProgress('${workout.id}')" class="w-full mt-8 text-[9px] text-slate-700 font-black uppercase tracking-widest">Reset Progress</button>
+        <button onclick="showResetModal('${workout.id}')" class="w-full mt-10 p-4 rounded-xl border border-red-500/20 text-red-500 bg-red-500/5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition">Reset Program Progress</button>
     `;
 }
 
@@ -158,7 +176,7 @@ function renderGrid(logs, currentActive) {
         let classes = "grid-box ";
         
         if (done) classes += "bg-green-500 border-green-500 text-slate-900";
-        else if (active) classes += "border-blue-500 text-blue-500 animate-pulse";
+        else if (active) classes += "border-blue-500 text-blue-500 animate-pulse shadow-lg shadow-blue-500/20";
         else classes += "text-slate-800";
         
         html += `<div class="${classes}">${done ? '✓' : i}</div>`;
@@ -166,26 +184,34 @@ function renderGrid(logs, currentActive) {
     return html;
 }
 
-// Checkboxes and Rounds Logic
+// Logic: Checkboxes & Rounds
 function handleCheck(workoutId, totalRounds) {
     const checkboxes = document.querySelectorAll('.task-checkbox');
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    const nxtBtn = document.getElementById('next-round-btn');
+    const finBtn = document.getElementById('finish-btn');
 
     if (allChecked) {
         if (state.sessionRound < totalRounds) {
-            setTimeout(() => {
-                state.sessionRound++;
-                if (timerInterval) clearInterval(timerInterval);
-                render(); 
-            }, 400); // Small delay so the user sees the final tick before it switches
+            if(nxtBtn) nxtBtn.classList.remove('hidden');
         } else {
-            // Unhide the Log Session button
-            document.getElementById('finish-btn').classList.remove('hidden');
+            if(finBtn) finBtn.classList.remove('hidden');
         }
+    } else {
+        if(nxtBtn) nxtBtn.classList.add('hidden');
+        if(finBtn) finBtn.classList.add('hidden');
     }
 }
 
-// Timer Logic
+function nextRound() {
+    state.sessionRound++;
+    clearActiveTimer();
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Logic: Timer
 function parseTime(timeStr) {
     let seconds = 0;
     const mMatch = timeStr.match(/(\d+)\s*m/i);
@@ -195,41 +221,90 @@ function parseTime(timeStr) {
     return seconds;
 }
 
-function startTimer(btn, timeStr) {
-    if (timerInterval) clearInterval(timerInterval);
-    let time = parseTime(timeStr);
-    if(time === 0) return;
-    
-    btn.disabled = true;
-    btn.classList.add('bg-blue-600', 'text-white');
-    btn.classList.remove('bg-slate-800', 'text-blue-400');
-    btn.innerText = time + ' SECONDS';
-    
-    timerInterval = setInterval(() => {
-        time--;
-        if(time <= 0) {
-            clearInterval(timerInterval);
-            btn.innerText = "DONE!";
-            btn.classList.replace('bg-blue-600', 'bg-green-500');
-            
-            // Auto-check the plank box if possible
-            const parent = btn.parentElement;
-            const checkbox = parent.querySelector('.task-checkbox');
-            if (checkbox && !checkbox.checked) {
-                checkbox.checked = true;
-                checkbox.dispatchEvent(new Event('change'));
-            }
-        } else {
-            btn.innerText = time + ' SECONDS';
-        }
-    }, 1000);
+function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-// Navigation & Actions
+function clearActiveTimer() {
+    if (tInterval) clearInterval(tInterval);
+    tRunning = false;
+    tActiveIdx = null;
+}
+
+function toggleTimer(idx, maxSecs, btnElem) {
+    if (tActiveIdx !== idx) {
+        clearActiveTimer();
+        tActiveIdx = idx;
+        tLeft = maxSecs;
+    }
+
+    if (tRunning) {
+        // Pause
+        clearInterval(tInterval);
+        tRunning = false;
+        btnElem.innerText = "Resume";
+        btnElem.classList.replace('bg-red-500/20', 'bg-blue-600/20');
+        btnElem.classList.replace('text-red-500', 'text-blue-500');
+    } else {
+        // Start
+        tRunning = true;
+        btnElem.innerText = "Pause";
+        btnElem.classList.replace('bg-blue-600/20', 'bg-red-500/20');
+        btnElem.classList.replace('text-blue-500', 'text-red-500');
+
+        tInterval = setInterval(() => {
+            tLeft--;
+            const disp = document.getElementById(`time-disp-${idx}`);
+            if (disp) disp.innerText = formatTime(tLeft);
+
+            if (tLeft <= 0) {
+                clearInterval(tInterval);
+                tRunning = false;
+                btnElem.innerText = "Done";
+                btnElem.disabled = true;
+                btnElem.classList.replace('bg-red-500/20', 'bg-green-500/20');
+                btnElem.classList.replace('text-red-500', 'text-green-500');
+                
+                // Auto-tick the checkbox
+                const cb = document.getElementById(`task-${idx}`);
+                if (cb && !cb.checked) {
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change'));
+                }
+            }
+        }, 1000);
+    }
+}
+
+function resetTimer(idx, maxSecs) {
+    if (tActiveIdx === idx) {
+        clearInterval(tInterval);
+        tRunning = false;
+        tLeft = maxSecs;
+        
+        const disp = document.getElementById(`time-disp-${idx}`);
+        if (disp) disp.innerText = formatTime(maxSecs);
+
+        // Reset the start/pause button beside it
+        const container = disp.nextElementSibling;
+        if (container) {
+            const btn = container.querySelector('button');
+            if (btn) {
+                btn.innerText = "Start";
+                btn.disabled = false;
+                btn.className = "flex-1 bg-blue-600/20 text-blue-500 py-2.5 rounded-lg font-bold text-[11px] uppercase tracking-wider active:bg-blue-600 active:text-white transition";
+            }
+        }
+    }
+}
+
+// Logic: Navigation & Actions
 function nav(viewId) {
     state.view = viewId;
-    state.sessionRound = 1; // Reset round on navigation
-    if (timerInterval) clearInterval(timerInterval);
+    state.sessionRound = 1;
+    clearActiveTimer();
     window.scrollTo(0, 0);
     render();
 }
@@ -246,18 +321,30 @@ function finishSession(workoutId) {
         if (nextCount <= 30) prog.logs.push(nextCount);
     }
 
-    state.sessionRound = 1; // Reset round for next time
+    state.sessionRound = 1;
+    clearActiveTimer();
     localStorage.setItem('hub_progress', JSON.stringify(state.progress));
-    nav('home');
+    
+    // Kept on the same view so user sees the progress update!
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    render();
 }
 
-function resetProgress(workoutId) {
-    if (confirm("Reset this specific program?")) {
+// Logic: Reset Modal
+function showResetModal(workoutId) {
+    document.getElementById('reset-modal').classList.remove('hidden');
+    document.getElementById('confirm-reset-btn').onclick = () => {
         state.progress[workoutId] = { cur: 1, logs: [] };
         state.sessionRound = 1;
+        clearActiveTimer();
         localStorage.setItem('hub_progress', JSON.stringify(state.progress));
+        hideResetModal();
         render();
-    }
+    };
+}
+
+function hideResetModal() {
+    document.getElementById('reset-modal').classList.add('hidden');
 }
 
 // Start the engine
