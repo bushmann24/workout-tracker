@@ -120,6 +120,18 @@ function renderWorkout(root, workout) {
                 .map(([k, v], idx) => {
                     let timerHtml = '';
                     let timerToggleBtn = '';
+                    let totalStr = '';
+                    
+                    // Auto-calculate the total reps/time if there are multiple rounds
+                    if (totalRounds > 1) {
+                        const valStr = v.toString().toLowerCase();
+                        if (valStr.includes('s') || valStr.includes('m')) {
+                            totalStr = `(${formatTime(parseTime(v) * totalRounds)} total)`;
+                        } else {
+                            const num = parseInt(v);
+                            if (!isNaN(num)) totalStr = `(${num * totalRounds} total)`;
+                        }
+                    }
                     
                     if (k.toLowerCase().includes('plank')) {
                         const secs = parseTime(v);
@@ -146,7 +158,7 @@ function renderWorkout(root, workout) {
 
                     return `
                     <div>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2 ml-1">${k}</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2 ml-1">${k} <span class="text-blue-400/80 normal-case tracking-normal ml-1">${totalStr}</span></p>
                         <div class="bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition border border-transparent select-none">
                             <label for="task-${idx}" class="flex items-center gap-4 cursor-pointer active:scale-[0.98]">
                                 <input type="checkbox" id="task-${idx}" onchange="handleCheck('${workout.id}', ${totalRounds})" class="task-checkbox w-6 h-6 rounded bg-slate-800 border-slate-700 pointer-events-none">
